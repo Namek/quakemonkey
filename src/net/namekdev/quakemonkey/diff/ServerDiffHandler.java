@@ -5,22 +5,12 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 
 import net.namekdev.quakemonkey.diff.messages.AckMessage;
-
-/*
-import com.jme3.network.AbstractMessage;
-import com.jme3.network.ConnectionListener;
-import com.jme3.network.Filter;
-import com.jme3.network.Filters;
-import com.jme3.network.HostedConnection;
-import com.jme3.network.Message;
-import com.jme3.network.MessageListener;
-import com.jme3.network.Server;
-*/
 
 /**
  * Handles the dispatching of messages of type {@code T} to clients, using a
@@ -36,39 +26,45 @@ import com.jme3.network.Server;
  * @see #ClientDiffHandler
  */
 public class ServerDiffHandler<T> extends Listener {
-	protected static final Logger log = Logger
-			.getLogger(ServerDiffHandler.class.getName());
+	protected static final Logger log = Logger.getLogger(ServerDiffHandler.class.getName());
+	private final Kryo kryoSerializer;
 	private final short numHistory;
 	private final Map<Connection, DiffConnection<T>> connectionSnapshots;
+	private final boolean alwaysSendDiffs;
 
-	public ServerDiffHandler(Server server, short numHistory) {
+	public ServerDiffHandler(Server server, short numHistory, boolean alwaysSendDiffs) {
+		this.kryoSerializer = server.getKryo();
 		this.numHistory = numHistory;
+		this.alwaysSendDiffs = alwaysSendDiffs;
 		connectionSnapshots = new HashMap<Connection, DiffConnection<T>>();
 
 		server.addListener(this);
 	}
+	
+	public ServerDiffHandler(Server server, short numHistory) {
+		this(server, numHistory, false);
+	}
 
+	public ServerDiffHandler(Server server, boolean alwaysSendDiffs) {
+		this(server, (short) 20, alwaysSendDiffs);
+	}
+	
 	public ServerDiffHandler(Server server) {
-		this(server, (short) 20);
+		this(server, false);
 	}
 
 	/**
-	 * Dispatches a message to all clients in the filter. If it is more
-	 * efficient to send a delta message, this is sent instead.
-	 * 
-	 * @param server
-	 *            The server that should send the message
-	 * @param message
-	 *            The message to be sent
+	 * Dispatches a message to all clients in the filter.
 	 */
 	public void dispatchMessage(Server server, Connection[] connections, T message) {
 		for (Connection connection : server.getConnections()) {
-			if (arrayContains(connections, connection)) {
+			if (Utils.arrayContainsRef(connections, connection)) {
 				if (!connectionSnapshots.containsKey(connection)) {
-					connectionSnapshots.put(connection, new DiffConnection<T>(numHistory));
+					connectionSnapshots.put(connection, new DiffConnection<T>(kryoSerializer, numHistory, alwaysSendDiffs));
 				}
 
-				Object newMessage = connectionSnapshots.get(connection).generateSnapshot(message);
+				DiffConnection<T> diffConnection = connectionSnapshots.get(connection);
+				Object newMessage = diffConnection.generateSnapshot(message);
 				server.sendToUDP(connection.getID(), newMessage);
 			}
 		}
@@ -105,16 +101,8 @@ public class ServerDiffHandler<T> extends Listener {
 	@Override
 	public void received(Connection source, Object m) {
 		if (m instanceof AckMessage && connectionSnapshots.containsKey(source)) {
-			connectionSnapshots.get(source).registerAck(((AckMessage) m).getId());
+			DiffConnection<T> diffConnection = connectionSnapshots.get(source);
+			diffConnection.registerAck(((AckMessage) m).getId());
 		}
-	}
-
-	private static <T> boolean arrayContains(final T[] array, final T key) {
-	    for (final T el : array) {
-	        if (el == key) {
-	            return true;
-	        }
-	    }
-	    return false;
 	}
 }

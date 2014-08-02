@@ -1,3 +1,7 @@
+h1. This fork
+
+This fork was intended to change library dependency - from jMonkeyEngine to KryoNet.
+
 h1. What is quakemonkey?
 
 Quakemonkey is an implementation of the snapshot protocol used in the successful Quake 3 engine, built on top of the existing jMonkeyEngine networking framework. In short, this UDP-only protocol sends partial messages to each client in order to save bandwidth. These partials are created from the difference at byte level of the current message and the message that was last received by the client. For a more detailed overview, see this "webpage":http://fabiensanglard.net/quake3/network.php.
@@ -22,6 +26,8 @@ h2. Example code
 The following shows how to use quakemonkey in your code. For a full example, see the _example_ directory in the git repository.
 
 h3. Server code:
+
+Note: Following example code will be changed after refactoring is done.
 
 bc. DiffClassRegistration.registerClasses();
 myServer = Network.createServer(6143);

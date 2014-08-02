@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.esotericsoftware.kryo.Kryo;
+
 import net.namekdev.quakemonkey.diff.messages.DiffMessage;
 import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
 
@@ -22,13 +24,24 @@ import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
  */
 public class DiffConnection<T> {
 	protected static final Logger log = Logger.getLogger(DiffConnection.class.getName());
+	private final Kryo kryoSerializer;
 	private final short numSnapshots;
 	private final List<T> snapshots;
 	private short curPos; // position in cyclic array
 	private short ackPos;
+	
+	/**
+	 * If set to false, then size of full message and message diff is compared;
+	 * based on that the smaller message is being sent.
+	 * 
+	 * If set to true, then message diff is being sent instead of full message.
+	 */
+	private final boolean alwaysSendDiff;
 
-	public DiffConnection(short numSnapshots) {
+	public DiffConnection(Kryo kryoSerializer, short numSnapshots, boolean alwaysSendDiff) {
+		this.kryoSerializer = kryoSerializer;
 		this.numSnapshots = numSnapshots;
+		this.alwaysSendDiff = alwaysSendDiff;
 		snapshots = new ArrayList<T>(numSnapshots);
 
 		for (int i = 0; i < numSnapshots; i++) {
@@ -37,6 +50,10 @@ public class DiffConnection<T> {
 
 		curPos = 0;
 		ackPos = -1;
+	}
+	
+	public DiffConnection(Kryo kryoSerializer, short numSnapshots) {
+		this(kryoSerializer, numSnapshots, false);
 	}
 
 	/**
@@ -110,10 +127,10 @@ public class DiffConnection<T> {
 	 *            Previous message
 	 * @return
 	 */
-	public Object generateDelta(T message, T prevMessage, short prevID) {
+	private Object generateDelta(T message, T prevMessage, short prevID) {
 		// TODO: skip size?
-		ByteBuffer old = MessageProtocol.messageToBuffer(prevMessage, null);//TODO use something from kryo
-		ByteBuffer buffer = MessageProtocol.messageToBuffer(message, null);
+		ByteBuffer old = Utils.messageToBuffer(prevMessage, null, kryoSerializer);
+		ByteBuffer buffer = Utils.messageToBuffer(message, null, kryoSerializer);
 
 		int intBound = (int) (Math.ceil(buffer.remaining() / 4)) * 4;
 		old.limit(intBound);
@@ -143,7 +160,7 @@ public class DiffConnection<T> {
 
 		/* Check what is smaller, delta message or original buffer */
 		// TODO: fix numbers to be more accurate
-		if (diffInts.remaining() * 4 + 8 < buffer.limit()) {
+		if (alwaysSendDiff || diffInts.remaining() * 4 + 8 < buffer.limit()) {
 			int[] b = new int[diffInts.remaining()];
 			diffInts.get(b, 0, b.length);
 

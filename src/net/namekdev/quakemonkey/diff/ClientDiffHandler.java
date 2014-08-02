@@ -1,6 +1,7 @@
 package net.namekdev.quakemonkey.diff;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +12,8 @@ import net.namekdev.quakemonkey.diff.messages.AckMessage;
 import net.namekdev.quakemonkey.diff.messages.DiffMessage;
 import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
@@ -37,6 +40,7 @@ import com.esotericsoftware.kryonet.Listener;
 @SuppressWarnings("unchecked")
 public class ClientDiffHandler<T> extends Listener {
 	protected static final Logger log = Logger.getLogger(ClientDiffHandler.class.getName());
+	private final Kryo kryoSerializer;
 	private final short numSnapshots;
 	private final Class<T> cls;
 	private final List<T> snapshots;
@@ -44,9 +48,10 @@ public class ClientDiffHandler<T> extends Listener {
 	private short curPos;
 
 	public ClientDiffHandler(Client client, Class<T> cls, short numSnapshots) {
+		this.kryoSerializer = client.getKryo();
 		this.numSnapshots = numSnapshots;
 		this.cls = cls;
-		listenerRegistry = new MessageMultiplexer(client);
+		listenerRegistry = new MessageMultiplexer();
 		snapshots = new ArrayList<T>(numSnapshots);
 
 		for (int i = 0; i < numSnapshots; i++) {
@@ -75,9 +80,29 @@ public class ClientDiffHandler<T> extends Listener {
 	 * @return A new message of type {@code T}
 	 */
 	public T mergeMessage(T oldMessage, DiffMessage diffMessage) {
+		ByteBuffer oldBuffer = Utils.messageToBuffer(oldMessage, null, kryoSerializer);
+
+		// Copy old message
+		ByteBuffer newBuffer = ByteBuffer.allocate(32767);
+		newBuffer.put(oldBuffer);
+		newBuffer.position(0);
+
+		int index = 0;
+		for (int i = 0; i < 8 * diffMessage.getFlag().length; i++) {
+			if ((diffMessage.getFlag()[i / 8] & (1 << (i % 8))) != 0) {
+				newBuffer.putInt(i * 4, diffMessage.getData()[index]);
+				index++;
+			}
+		}
+
+		newBuffer.position(2); // skip size
+		return (T) kryoSerializer.readClassAndObject(new Input(newBuffer.array()));
+	}
+	/*public T mergeMessage(T oldMessage, DiffMessage diffMessage) {
+		
 		ByteBuffer oldBuffer = MessageProtocol.messageToBuffer(oldMessage, null);
 
-		/* Copy old message */
+		// Copy old message
 		ByteBuffer newBuffer = ByteBuffer.allocate(32767);
 		newBuffer.put(oldBuffer);
 		newBuffer.position(0);
@@ -99,7 +124,7 @@ public class ClientDiffHandler<T> extends Listener {
 		}
 
 		return null;
-	}
+	}*/
 
 	/**
 	 * Process the arrival of either a message of type {@code T} or a delta
@@ -108,12 +133,12 @@ public class ClientDiffHandler<T> extends Listener {
 	 */
 	@Override
 	//public void messageReceived(Client source, Message m) {
-	public void received (Connection connection, Object m) {
+	public void received (Connection source, Object m) {
 		if (m instanceof LabeledMessage) {
 			LabeledMessage lm = (LabeledMessage) m;
 			T message = (T) lm.getMessage();
 
-			boolean isNew = curPos < lm.getLabel()	|| lm.getLabel() - curPos > Short.MAX_VALUE / 2;
+			boolean isNew = curPos == 0 || curPos < lm.getLabel() || lm.getLabel() - curPos > Short.MAX_VALUE / 2;
 
 			// message is too old
 			if (curPos - lm.getLabel() > numSnapshots
@@ -128,7 +153,7 @@ public class ClientDiffHandler<T> extends Listener {
 			}
 			else {
 				if (lm.getMessage() instanceof DiffMessage) {
-					log.log(Level.FINE, "Received diff of size " + MessageProtocol.messageToBuffer(message, null).limit());
+					log.log(Level.FINE, "Received diff of size " + Utils.messageToBuffer(message, null, kryoSerializer).limit());
 
 					DiffMessage diffMessage = (DiffMessage) message;
 
@@ -140,17 +165,15 @@ public class ClientDiffHandler<T> extends Listener {
 			}
 
 			/* Send an ACK back */
-			source.send(new AckMessage(lm.getLabel()));
+			source.sendUDP(new AckMessage(lm.getLabel()));
 
 			/* Broadcast changes */
 			if (isNew) {
 				curPos = lm.getLabel();
-				listenerRegistry.messageReceived(source,
-						snapshots.get(curPos % numSnapshots));
+				listenerRegistry.dispatch(source, snapshots.get(curPos % numSnapshots));
 			} else {
 				// notify if message was old, for testing
-				log.log(Level.FINEST, "Old message received: " + lm.getLabel()
-						+ " vs. cur " + curPos);
+				log.log(Level.FINEST, "Old message received: " + lm.getLabel() + " vs. cur " + curPos);
 			}
 
 		}

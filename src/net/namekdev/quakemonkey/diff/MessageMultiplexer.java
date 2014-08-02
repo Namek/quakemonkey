@@ -6,26 +6,24 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 
 public class MessageMultiplexer {
-	private Connection _connection;
-	private ArrayList<Listener> _listeners = new ArrayList<Listener>();
+	private ArrayList<Listener> listeners = new ArrayList<Listener>();
 
-	public MessageMultiplexer(Connection connection) {
-		_connection = connection;
+	public MessageMultiplexer() {
 	}
 
 	public void addMessageListener(Listener listener) {
-		if (!_listeners.contains(listener)) {
-			_listeners.add(listener);
+		if (!listeners.contains(listener)) {
+			listeners.add(listener);
 		}
 	}
 
 	public void removeMessageListener(Listener listener) {
-		_listeners.remove(listener);
+		listeners.remove(listener);
 	}
 
-	public void dispatch(Object object) {
-		for (Listener listener : _listeners) {
-			listener.received(_connection, object);
+	public void dispatch(Connection source, Object message) {
+		for (Listener listener : listeners) {
+			listener.received(source, message);
 		}
 	}
 }
