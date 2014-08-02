@@ -1,7 +1,4 @@
-package diff;
-
-import com.jme3.network.AbstractMessage;
-import com.jme3.network.serializing.Serializable;
+package net.namekdev.quakemonkey.diff.messages;
 
 /**
  * An acknowledgment message that is sent from the client to the server. It
@@ -11,12 +8,10 @@ import com.jme3.network.serializing.Serializable;
  * 
  */
 // TODO: add the class that the ack is for
-@Serializable
-public class AckMessage extends AbstractMessage {
+public class AckMessage {
 	private short id;
 
 	public AckMessage() {
-		super(false);
 	}
 
 	public AckMessage(short id) {
@@ -26,5 +21,4 @@ public class AckMessage extends AbstractMessage {
 	public short getId() {
 		return id;
 	}
-
 }

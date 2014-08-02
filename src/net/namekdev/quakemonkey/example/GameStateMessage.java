@@ -1,9 +1,6 @@
-package example;
+package net.namekdev.quakemonkey.example;
 
 import java.util.List;
-
-import com.jme3.network.AbstractMessage;
-import com.jme3.network.serializing.Serializable;
 
 /**
  * Example master gamestate that has to be sent from the server to the client
@@ -12,20 +9,16 @@ import com.jme3.network.serializing.Serializable;
  * @author Ben Ruijl
  * 
  */
-@Serializable
-public class GameStateMessage extends AbstractMessage {
+public class GameStateMessage {
 	private String name;
 	private List<Float> position;
 	private List<Float> orientation;
 	private byte id;
 
 	public GameStateMessage() {
-		super(false); // we want to use UDP
 	}
 
-	public GameStateMessage(String name, List<Float> position,
-			List<Float> orientation, byte id) {
-		super(false); // we want to use UDP
+	public GameStateMessage(String name, List<Float> position, List<Float> orientation, byte id) {
 		this.name = name;
 		this.position = position;
 		this.orientation = orientation;

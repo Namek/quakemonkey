@@ -1,4 +1,2 @@
 *.class
-com
-.project
-.classpath
+/bin

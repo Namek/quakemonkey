@@ -1,4 +1,4 @@
-package diff;
+package net.namekdev.quakemonkey.diff;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -7,9 +7,8 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.jme3.network.AbstractMessage;
-import com.jme3.network.Message;
-import com.jme3.network.base.MessageProtocol;
+import net.namekdev.quakemonkey.diff.messages.DiffMessage;
+import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
 
 /**
  * The server-side handler of generating delta messages for one connection. It
@@ -21,9 +20,8 @@ import com.jme3.network.base.MessageProtocol;
  * @param <T>
  *            Message type
  */
-public class DiffConnection<T extends AbstractMessage> {
-	protected static final Logger log = Logger.getLogger(DiffConnection.class
-			.getName());
+public class DiffConnection<T> {
+	protected static final Logger log = Logger.getLogger(DiffConnection.class.getName());
 	private final short numSnapshots;
 	private final List<T> snapshots;
 	private short curPos; // position in cyclic array
@@ -31,7 +29,7 @@ public class DiffConnection<T extends AbstractMessage> {
 
 	public DiffConnection(short numSnapshots) {
 		this.numSnapshots = numSnapshots;
-		snapshots = new ArrayList<>(numSnapshots);
+		snapshots = new ArrayList<T>(numSnapshots);
 
 		for (int i = 0; i < numSnapshots; i++) {
 			snapshots.add(null);
@@ -49,7 +47,7 @@ public class DiffConnection<T extends AbstractMessage> {
 	 *            Message to add to snapshot list
 	 * @return {@code message} or a delta message
 	 */
-	public Message generateSnapshot(T message) {
+	public Object generateSnapshot(T message) {
 		short oldPos = curPos;
 		snapshots.set((short) (oldPos % numSnapshots), message);
 		curPos++;
@@ -71,8 +69,7 @@ public class DiffConnection<T extends AbstractMessage> {
 		}
 
 		T oldMessage = snapshots.get(ackPos % numSnapshots);
-		return new LabeledMessage(oldPos, generateDelta(message, oldMessage,
-				ackPos));
+		return new LabeledMessage(oldPos, generateDelta(message, oldMessage, ackPos));
 	}
 
 	/**
@@ -113,9 +110,9 @@ public class DiffConnection<T extends AbstractMessage> {
 	 *            Previous message
 	 * @return
 	 */
-	public Message generateDelta(T message, T prevMessage, short prevID) {
+	public Object generateDelta(T message, T prevMessage, short prevID) {
 		// TODO: skip size?
-		ByteBuffer old = MessageProtocol.messageToBuffer(prevMessage, null);
+		ByteBuffer old = MessageProtocol.messageToBuffer(prevMessage, null);//TODO use something from kryo
 		ByteBuffer buffer = MessageProtocol.messageToBuffer(message, null);
 
 		int intBound = (int) (Math.ceil(buffer.remaining() / 4)) * 4;
@@ -151,7 +148,8 @@ public class DiffConnection<T extends AbstractMessage> {
 			diffInts.get(b, 0, b.length);
 
 			return new DiffMessage(prevID, flag, b);
-		} else {
+		}
+		else {
 			return message;
 		}
 	}
