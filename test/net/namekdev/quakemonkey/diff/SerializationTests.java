@@ -128,24 +128,6 @@ public class SerializationTests {
 		// will call listener above
 		clientDiffHandler.received(fakeClient, messageReceived);
 	}
-	
-	/**
-	 * Scenario: server sends two gamestates, but client acknowledges only the second one.
-	 * Third gamestate is a delta to second one.
-	 */
-	@Test
-	public void messageDeliverTest() {
-		fail("not yet implemented");
-	}
-	
-	/**
-	 * Scenaro: application wants to send same gamestate twice.
-	 * Second message shouldn't be sent.
-	 */
-	@Test
-	public void sameMessagesTest() {
-		fail("not yet implemented");
-	}
 
 	@DefaultSerializer(GameStateMessage.GameStateSerializer.class)
 	private static class GameStateMessage {
