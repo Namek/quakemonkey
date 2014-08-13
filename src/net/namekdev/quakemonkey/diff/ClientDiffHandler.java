@@ -87,44 +87,22 @@ public class ClientDiffHandler<T> extends Listener {
 		newBuffer.put(oldBuffer);
 		newBuffer.position(0);
 
+		byte[] diffFlags = diffMessage.getFlag();
+		int[] diffData = diffMessage.getData();
 		int index = 0;
-		for (int i = 0; i < 8 * diffMessage.getFlag().length; i++) {
-			if ((diffMessage.getFlag()[i / 8] & (1 << (i % 8))) != 0) {
-				newBuffer.putInt(i * 4, diffMessage.getData()[index]);
-				index++;
-			}
-		}
-
-		newBuffer.position(2); // skip size
-		return (T) kryoSerializer.readClassAndObject(new Input(newBuffer.array()));
-	}
-	/*public T mergeMessage(T oldMessage, DiffMessage diffMessage) {
 		
-		ByteBuffer oldBuffer = MessageProtocol.messageToBuffer(oldMessage, null);
-
-		// Copy old message
-		ByteBuffer newBuffer = ByteBuffer.allocate(32767);
-		newBuffer.put(oldBuffer);
-		newBuffer.position(0);
-
-		int index = 0;
-		for (int i = 0; i < 8 * diffMessage.getFlag().length; i++) {
-			if ((diffMessage.getFlag()[i / 8] & (1 << (i % 8))) != 0) {
-				newBuffer.putInt(i * 4, diffMessage.getData()[index]);
+		for (int i = 0; i < 8 * diffFlags.length; i++) {
+			if ((diffFlags[i / 8] & (1 << (i % 8))) != 0) {
+				newBuffer.putInt(i * 4, diffData[index]);
 				index++;
 			}
 		}
 
-		try {
-			newBuffer.position(2); // skip size
-			return (T) Serializer.readClassAndObject(newBuffer);
-		}
-		catch (IOException e) {
-			log.log(Level.SEVERE, "Could not merge messages", e);
-		}
-
-		return null;
-	}*/
+		Input input = new Input(newBuffer.array());
+		input.setPosition(2); // skip size
+		Object obj = kryoSerializer.readClassAndObject(input);
+		return (T) obj;
+	}
 
 	/**
 	 * Process the arrival of either a message of type {@code T} or a delta

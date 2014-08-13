@@ -25,9 +25,9 @@ h2. Example code
 
 The following shows how to use quakemonkey in your code. For a full example, see the _example_ directory in the git repository.
 
-h3. Server code:
+Note: this section will be edited later.
 
-Note: Following example code will be changed after refactoring is done.
+h3. Server code:
 
 bc. DiffClassRegistration.registerClasses();
 myServer = Network.createServer(6143);

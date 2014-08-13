@@ -76,43 +76,43 @@ public class SerializationTests {
 		DiffClassRegistration.registerClasses(kryoSerializer);
 		kryoSerializer.register(GameStateMessage.class);
 		
-		
 		DiffConnection<GameStateMessage> diffConnection = new DiffConnection<GameStateMessage>(kryoSerializer, (short)20, true);
+		ClientDiffHandler<GameStateMessage> clientDiffHandler = new ClientDiffHandler<GameStateMessage>(fakeClient, GameStateMessage.class, (short) 30);
 		//ServerDiffHandler<GameStateMessage> serverDiffHandler = new ServerDiffHandler<SerializationTests.GameStateMessage>(new FakeServer());
 		
 		// Server sends first gamestate
-		String someSuperLongString = "nmkewdgdsgdfgfdgsagfgdsfddsgahdgsfdsgdfgsdfhgsdfsdfggsdfsdafsgsfsddhgsdfsdg";
+		String name = "nmk";
 		List<Float> position = Arrays.asList(new Float[] { 0.5f, 0.6f, 0.7f });
 		List<Float> orientation = Arrays.asList(new Float[] { 0f, 0f, 1f });
 		byte id = (byte)1;
-		GameStateMessage message = new GameStateMessage(someSuperLongString, position, orientation, id);
+		GameStateMessage message = new GameStateMessage(name, position, orientation, id);
 		
 		// should be: serverDiffHandler.dispatchMessage(fakeServer, fakeServer.getConnections(), message);
-		// but we'll do that indirectly
+		// but we'll do that directly
 		LabeledMessage firstMessage = (LabeledMessage) diffConnection.generateSnapshot(message);
 		
 		// Client acknowledges first message.
 		// should be: fakeClient.sendUDP(new AckMessage(firstMessage.getLabel()));
-		diffConnection.registerAck((new AckMessage(firstMessage.getLabel())).getId());
+		clientDiffHandler.received(fakeClient, firstMessage);
+		diffConnection.registerAck(firstMessage.getLabel());
 		
 		// Server sends second gamestate
 		position = Arrays.asList((Float[])position.toArray());//clone
 		orientation = Arrays.asList((Float[])orientation.toArray());
 		orientation.set(0, 1f);
-		message = new GameStateMessage("" + someSuperLongString, position, orientation, (byte)2);
+		message = new GameStateMessage("" + name, position, orientation, (byte)2);
 		final Object secondMessage = diffConnection.generateSnapshot(message);
 		
-		// Now Client didn't receive or didn't acknowledge properly first gamestate.
+		// Now Client didn't receive or didn't acknowledge properly 2nd gamestate.
 		// Server doesn't know what happened, so it should send delta based on 1st and 3rd gamestate. 
 		
 		// Server sends third gamestate
 		position = Arrays.asList((Float[])position.toArray());//clone
 		orientation = Arrays.asList((Float[])orientation.toArray());
-		message = new GameStateMessage("" + someSuperLongString, position, orientation, (byte)3);
+		message = new GameStateMessage("" + name, position, orientation, (byte)3);
 		final Object thirdMessage = diffConnection.generateSnapshot(message);
 		
 		// Client receives snapshot delta based on 1st and 3rd gamestate. 
-		ClientDiffHandler<GameStateMessage> clientDiffHandler = new ClientDiffHandler<GameStateMessage>(fakeClient, GameStateMessage.class, (short) 30);
 		Object messageReceived = thirdMessage;
 		
 		clientDiffHandler.addListener(new Listener() {
