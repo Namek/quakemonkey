@@ -145,7 +145,7 @@ public class ClientDiffHandler<T> extends Listener {
 			}
 
 			/* Send an ACK back */
-			source.sendUDP(new AckMessage(lm.getLabel()));
+			source.sendUDP(AckMessage.Pool.obtain().set(lm.getLabel()));
 
 			/* Broadcast changes */
 			if (isNew) {

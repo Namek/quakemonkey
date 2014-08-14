@@ -29,7 +29,7 @@ public class DiffMessageSerializer extends Serializer<DiffMessage> {
 
 		int[] val = input.readInts(intCount);
 		
-		return new DiffMessage(messageID, flags, val);
+		return DiffMessage.Pool.obtain().set(messageID, flags, val);
 	}
 
 	@Override

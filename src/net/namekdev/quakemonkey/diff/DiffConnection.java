@@ -11,6 +11,7 @@ import com.esotericsoftware.kryo.Kryo;
 
 import net.namekdev.quakemonkey.diff.messages.DiffMessage;
 import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
+import net.namekdev.quakemonkey.diff.utils.Pool;
 
 /**
  * The server-side handler of generating delta messages for one connection. It
@@ -64,7 +65,7 @@ public class DiffConnection<T> {
 	 *            Message to add to snapshot list
 	 * @return {@code message} or a delta message
 	 */
-	public Object generateSnapshot(T message) {
+	public LabeledMessage generateSnapshot(T message) {
 		short oldPos = curPos;
 		snapshots.set((short) (oldPos % numSnapshots), message);
 		curPos++;
@@ -75,18 +76,18 @@ public class DiffConnection<T> {
 		}
 
 		if (ackPos < 0) {
-			return new LabeledMessage(oldPos, message);
+			return LabeledMessage.Pool.obtain().set(oldPos, message);
 		}
 
 		/* Is the last received message too old? Send a full one */
 		if (oldPos - ackPos > numSnapshots
 				|| (ackPos - oldPos > Short.MAX_VALUE / 2 && Short.MAX_VALUE
 						- ackPos + oldPos > numSnapshots)) {
-			return new LabeledMessage(oldPos, message);
+			return LabeledMessage.Pool.obtain().set(oldPos, message);
 		}
 
 		T oldMessage = snapshots.get(ackPos % numSnapshots);
-		return new LabeledMessage(oldPos, generateDelta(message, oldMessage, ackPos));
+		return LabeledMessage.Pool.obtain().set(oldPos, generateDelta(message, oldMessage, ackPos));
 	}
 
 	/**
@@ -132,7 +133,6 @@ public class DiffConnection<T> {
 	 * @return
 	 */
 	private Object generateDelta(T message, T prevMessage, short prevID) {
-		// TODO: skip size?
 		ByteBuffer old = Utils.messageToBuffer(prevMessage, null, kryoSerializer);
 		ByteBuffer buffer = Utils.messageToBuffer(message, null, kryoSerializer);
 
@@ -140,8 +140,7 @@ public class DiffConnection<T> {
 		old.limit(intBound);
 		buffer.limit(intBound); // set buffers to be the same size
 
-		IntBuffer diffInts = IntBuffer.allocate(buffer.limit()); // great
-																	// overestimation
+		IntBuffer diffInts = IntBuffer.allocate(buffer.limit()); // great overestimation
 
 		// check block of size int
 		int numBits = intBound / 4;
@@ -155,7 +154,6 @@ public class DiffConnection<T> {
 			if (old.remaining() < 4 || val != old.getInt()) {
 				diffInts.put(val);
 				flag[i / 8] |= 1 << (i % 8);
-				// System.out.println("Int " + i + " changed.");
 			}
 			i++;
 		}
@@ -168,11 +166,10 @@ public class DiffConnection<T> {
 			int[] b = new int[diffInts.remaining()];
 			diffInts.get(b, 0, b.length);
 
-			return new DiffMessage(prevID, flag, b);
+			return DiffMessage.Pool.obtain().set(prevID, flag, b);
 		}
 		else {
 			return message;
 		}
 	}
-
 }
