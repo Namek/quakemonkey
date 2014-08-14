@@ -1,54 +1,49 @@
 package net.namekdev.quakemonkey.diff.utils;
 
+import java.nio.ByteBuffer;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
 public class BufferPool {
-	private static final TreeMap<Integer, byte[]> _byteArrayPool = new TreeMap<Integer, byte[]>();
-	private static final TreeMap<Integer, int[]> _intArrayPool = new TreeMap<Integer, int[]>();
+	public static final BufferPool Default = new BufferPool();
 	
-	public static byte[] obtainBytes(int minimumSize) {
+	private final DuplicatedKeysTreeMap<Integer, byte[]> _byteArrayPool = new DuplicatedKeysTreeMap<Integer, byte[]>();
+	private final DuplicatedKeysTreeMap<Integer, int[]> _intArrayPool = new DuplicatedKeysTreeMap<Integer, int[]>();
+	private final DuplicatedKeysTreeMap<Integer, ByteBuffer> _byteBufferPool = new DuplicatedKeysTreeMap<Integer, ByteBuffer>(false);	
+	
+	
+	public byte[] obtainBytes(int minimumSize) {
 		return obtainBytes(minimumSize, false);
 	}
 	
-	public static byte[] obtainBytes(int size, boolean exactSize) {
+	public byte[] obtainBytes(int size, boolean exactSize) {
 		synchronized (_byteArrayPool) {
-			Entry<Integer, byte[]> arrayEntry = exactSize ? null : _byteArrayPool.higherEntry(size - 1);
-			byte[] array = exactSize ? _byteArrayPool.get(size) : null;
+			byte[] array = exactSize ? _byteArrayPool.poll(size) : _byteArrayPool.pollCeiling(size);
 			
-			if (arrayEntry != null) {
-				array = arrayEntry.getValue();
-				_byteArrayPool.remove(arrayEntry);
-			}
-			else if (array == null) {
+			if (array == null) {
 				array = new byte[size];
 			}
-			
+
 			assert(array != null);
 			return array;
 		}
 	}
 	
-	public static void saveBytes(byte[] array) {
+	public void saveBytes(byte[] array) {
 		synchronized (_byteArrayPool) {
 			_byteArrayPool.put(array.length, array);
 		}
 	}
 	
-	public static int[] obtainInts(int size) {
+	public int[] obtainInts(int size) {
 		return obtainInts(size, false);
 	}
 	
-	public static int[] obtainInts(int size, boolean exactSize) {
+	public int[] obtainInts(int size, boolean exactSize) {
 		synchronized (_intArrayPool) {
-			Entry<Integer, int[]> arrayEntry = exactSize ? null : _intArrayPool.higherEntry(size - 1);
-			int[] array = exactSize ? _intArrayPool.get(size) : null;
-			
-			if (arrayEntry != null) {
-				array = arrayEntry.getValue();
-				_intArrayPool.remove(arrayEntry);
-			}
-			else if (array == null) {
+			int[] array = exactSize ? _intArrayPool.poll(size) : _intArrayPool.pollCeiling(size);
+
+			if (array == null) {
 				array = new int[size];
 			}
 			
@@ -57,9 +52,33 @@ public class BufferPool {
 		}
 	}
 	
-	public static void saveInts(int[] array) {
+	public void saveInts(int[] array) {
 		synchronized (_intArrayPool) {
 			_intArrayPool.put(array.length, array);
+		}
+	}
+	
+	public ByteBuffer obtainByteBuffer(int minimumSize) {
+		return obtainByteBuffer(minimumSize, false);
+	}
+
+	public ByteBuffer obtainByteBuffer(int size, boolean exactSize) {
+		synchronized (_byteBufferPool) {
+			ByteBuffer buffer = exactSize ? _byteBufferPool.poll(size) : _byteBufferPool.pollCeiling(size);
+			
+			if (buffer == null) {
+				buffer = ByteBuffer.allocate(size);
+			}
+			
+			assert(buffer != null);
+			return buffer;
+		}
+	}
+	
+	public void saveByteBuffer(ByteBuffer buffer) {
+		synchronized (_byteBufferPool) {
+			buffer.clear();
+			_byteBufferPool.put(buffer.capacity(), buffer);
 		}
 	}
 }

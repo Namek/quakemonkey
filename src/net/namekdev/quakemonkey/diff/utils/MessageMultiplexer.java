@@ -1,4 +1,4 @@
-package net.namekdev.quakemonkey.diff;
+package net.namekdev.quakemonkey.diff.utils;
 
 import java.util.ArrayList;
 

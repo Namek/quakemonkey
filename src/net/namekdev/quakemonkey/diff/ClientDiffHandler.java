@@ -9,6 +9,8 @@ import java.util.logging.Logger;
 import net.namekdev.quakemonkey.diff.messages.AckMessage;
 import net.namekdev.quakemonkey.diff.messages.DiffMessage;
 import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
+import net.namekdev.quakemonkey.diff.utils.BufferPool;
+import net.namekdev.quakemonkey.diff.utils.MessageMultiplexer;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -81,10 +83,12 @@ public class ClientDiffHandler<T> extends Listener {
 		ByteBuffer oldBuffer = Utils.messageToBuffer(oldMessage, null, kryoSerializer);
 
 		// Copy old message
-		ByteBuffer newBuffer = ByteBuffer.allocate(32767);
+		ByteBuffer newBuffer = BufferPool.Default.obtainByteBuffer(32767);
 		newBuffer.put(oldBuffer);
 		newBuffer.position(0);
 
+		BufferPool.Default.saveByteBuffer(oldBuffer);
+		
 		byte[] diffFlags = diffMessage.getFlag();
 		int[] diffData = diffMessage.getData();
 		int index = 0;
@@ -99,6 +103,9 @@ public class ClientDiffHandler<T> extends Listener {
 		Input input = new Input(newBuffer.array());
 		input.setPosition(2); // skip size
 		Object obj = kryoSerializer.readClassAndObject(input);
+		
+		BufferPool.Default.saveByteBuffer(newBuffer);
+		
 		return (T) obj;
 	}
 
@@ -132,7 +139,9 @@ public class ClientDiffHandler<T> extends Listener {
 			else {
 				if (lm.getMessage() instanceof DiffMessage) {
 					if (log.isLoggable(Level.FINE)) {
-						log.log(Level.FINE, "Received diff of size " + Utils.messageToBuffer(message, null, kryoSerializer).limit());
+						ByteBuffer logBuffer = Utils.messageToBuffer(message, null, kryoSerializer);
+						log.log(Level.FINE, "Received diff of size " + logBuffer.limit());
+						BufferPool.Default.saveByteBuffer(logBuffer);
 					}
 
 					DiffMessage diffMessage = (DiffMessage) message;

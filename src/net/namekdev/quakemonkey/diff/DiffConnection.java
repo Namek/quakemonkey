@@ -11,6 +11,7 @@ import com.esotericsoftware.kryo.Kryo;
 
 import net.namekdev.quakemonkey.diff.messages.DiffMessage;
 import net.namekdev.quakemonkey.diff.messages.LabeledMessage;
+import net.namekdev.quakemonkey.diff.utils.BufferPool;
 import net.namekdev.quakemonkey.diff.utils.Pool;
 
 /**
@@ -161,15 +162,22 @@ public class DiffConnection<T> {
 		diffInts.flip();
 
 		/* Check what is smaller, delta message or original buffer */
+		Object retMessage = null;
+		
 		// TODO: fix numbers to be more accurate
 		if (alwaysSendDiff || diffInts.remaining() * 4 + 8 < buffer.limit()) {
 			int[] b = new int[diffInts.remaining()];
 			diffInts.get(b, 0, b.length);
 
-			return DiffMessage.Pool.obtain().set(prevID, flag, b);
+			retMessage = DiffMessage.Pool.obtain().set(prevID, flag, b);
 		}
 		else {
-			return message;
+			retMessage = message;
 		}
+		
+		BufferPool.Default.saveByteBuffer(old);
+		BufferPool.Default.saveByteBuffer(buffer);
+		
+		return retMessage;
 	}
 }
