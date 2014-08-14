@@ -134,6 +134,8 @@ public class DiffConnection<T> {
 	 * @return
 	 */
 	private Object generateDelta(T message, T prevMessage, short prevID) {
+		BufferPool pool = BufferPool.Default;
+		
 		ByteBuffer old = Utils.messageToBuffer(prevMessage, null, kryoSerializer);
 		ByteBuffer buffer = Utils.messageToBuffer(message, null, kryoSerializer);
 
@@ -141,12 +143,12 @@ public class DiffConnection<T> {
 		old.limit(intBound);
 		buffer.limit(intBound); // set buffers to be the same size
 
-		IntBuffer diffInts = IntBuffer.allocate(buffer.limit()); // great overestimation
+		IntBuffer diffInts = pool.obtainIntBuffer(buffer.limit()); // great overestimation
 
 		// check block of size int
 		int numBits = intBound / 4;
 		int numBytes = (numBits - 1) / 8 + 1;
-		byte[] flag = new byte[numBytes];
+		byte[] flag = BufferPool.Default.obtainBytes(numBytes);
 
 		// also works if old and new are not the same size, but less efficiently
 		int i = 0;
@@ -166,17 +168,19 @@ public class DiffConnection<T> {
 		
 		// TODO: fix numbers to be more accurate
 		if (alwaysSendDiff || diffInts.remaining() * 4 + 8 < buffer.limit()) {
-			int[] b = new int[diffInts.remaining()];
-			diffInts.get(b, 0, b.length);
+			int diffDataSize = diffInts.remaining();
+			int[] diffData = pool.obtainInts(diffDataSize, true);
+			diffInts.get(diffData, 0, diffDataSize);
 
-			retMessage = DiffMessage.Pool.obtain().set(prevID, flag, b);
+			retMessage = DiffMessage.Pool.obtain().set(prevID, flag, diffData);
 		}
 		else {
 			retMessage = message;
 		}
 		
-		BufferPool.Default.saveByteBuffer(old);
-		BufferPool.Default.saveByteBuffer(buffer);
+		pool.saveByteBuffer(old);
+		pool.saveByteBuffer(buffer);
+		pool.saveIntBuffer(diffInts);
 		
 		return retMessage;
 	}

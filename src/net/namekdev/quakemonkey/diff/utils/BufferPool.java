@@ -1,15 +1,15 @@
 package net.namekdev.quakemonkey.diff.utils;
 
 import java.nio.ByteBuffer;
-import java.util.Map.Entry;
-import java.util.TreeMap;
+import java.nio.IntBuffer;
 
 public class BufferPool {
 	public static final BufferPool Default = new BufferPool();
 	
 	private final DuplicatedKeysTreeMap<Integer, byte[]> _byteArrayPool = new DuplicatedKeysTreeMap<Integer, byte[]>();
 	private final DuplicatedKeysTreeMap<Integer, int[]> _intArrayPool = new DuplicatedKeysTreeMap<Integer, int[]>();
-	private final DuplicatedKeysTreeMap<Integer, ByteBuffer> _byteBufferPool = new DuplicatedKeysTreeMap<Integer, ByteBuffer>(false);	
+	private final DuplicatedKeysTreeMap<Integer, ByteBuffer> _byteBufferPool = new DuplicatedKeysTreeMap<Integer, ByteBuffer>(false);
+	private final DuplicatedKeysTreeMap<Integer, IntBuffer> _intBufferPool = new DuplicatedKeysTreeMap<Integer, IntBuffer>(false);
 	
 	
 	public byte[] obtainBytes(int minimumSize) {
@@ -79,6 +79,30 @@ public class BufferPool {
 		synchronized (_byteBufferPool) {
 			buffer.clear();
 			_byteBufferPool.put(buffer.capacity(), buffer);
+		}
+	}
+	
+	public IntBuffer obtainIntBuffer(int minimumSize) {
+		return obtainIntBuffer(minimumSize, false);
+	}
+	
+	public IntBuffer obtainIntBuffer(int size, boolean exactSize) {
+		synchronized (_intBufferPool) {
+			IntBuffer buffer = exactSize ? _intBufferPool.poll(size) : _intBufferPool.pollCeiling(size);
+			
+			if (buffer == null) {
+				buffer = IntBuffer.allocate(size);
+			}
+			
+			assert(buffer != null);
+			return buffer;
+		}
+	}
+	
+	public void saveIntBuffer(IntBuffer buffer) {
+		synchronized (_intBufferPool) {
+			buffer.clear();
+			_intBufferPool.put(buffer.capacity(), buffer);
 		}
 	}
 }
